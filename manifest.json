@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "골라막기 — 유튜브 광고 선택 차단",
+  "version": "1.2.0",
+  "description": "직접 확인한 광고만 기억하고, 다시 등장하면 건너뛰기를 시도합니다.",
+  "permissions": ["storage"],
+  "action": { "default_popup": "popup.html", "default_title": "차단한 광고 관리" },
+  "content_scripts": [{
+    "matches": ["https://www.youtube.com/*"],
+    "js": ["identity.js", "playback.js", "content.js", "cards.js"],
+    "run_at": "document_idle"
+  }]
+}
