@@ -5,24 +5,35 @@
   let records = {}, enabled = true, pending = false;
   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
   function identity(ad) {
-    const title = normalize(ad.querySelector('#video-title, .yt-lockup-metadata-view-model__title, [role="heading"], #headline, .headline')?.textContent);
-    const links = [...ad.querySelectorAll('a[href]')].map(a => a.href);
-    const identified = AdIdentity.identify({ videoLinks: links, title });
-    if (identified) return { ...identified, key: `card:${identified.key}`, label: `[광고 카드] ${identified.label}` };
-    // Thumbnail video IDs identify a creative without storing click-tracking URLs.
-    const image = ad.querySelector('img');
+    const titleElement = ad.querySelector('#video-title, .yt-lockup-metadata-view-model__title, #headline, .headline');
+    const title = normalize(titleElement?.textContent);
+    if (!title) return null;
+    // Only creative links/images, never arbitrary links, channel avatars or preview blobs.
+    const links = [...ad.querySelectorAll('a#video-title[href], #video-title a[href], .yt-lockup-metadata-view-model__title a[href], a#thumbnail[href], #thumbnail a[href]')].map(a => a.href);
+    const ids = new Set();
+    for (const link of links) {
+      const identified = AdIdentity.identify({ videoLinks: [link] });
+      if (identified) ids.add(identified.key);
+    }
+    const image = ad.querySelector('#thumbnail img, img#thumbnail, .yt-lockup-view-model__content-image img');
     let thumbnail = '';
     try {
       const url = new URL(image?.currentSrc || image?.src);
       if (/(^|\.)ytimg\.com$/.test(url.hostname)) {
         const id = url.pathname.match(/^\/vi(?:_webp)?\/([\w-]{11})\//)?.[1];
-        if (id) return { key: `card:video:${id}`, label: `[광고 카드] ${title || id}` };
+        if (id) ids.add(`video:${id}`);
       }
-      if (url.protocol === 'https:') thumbnail = url.origin + url.pathname;
+      if (url.protocol === 'https:' && url.pathname !== '/') {
+        url.hash = '';
+        // Query parameters can identify different images. Keep them to avoid collisions.
+        thumbnail = url.href;
+      }
     } catch {}
-    const advertiser = normalize(ad.querySelector('#channel-name, .yt-content-metadata-view-model__metadata-text, #ad-badge-container + *, .ytwAdInfoViewModelHost')?.textContent);
+    if (ids.size > 1) return null;
+    if (ids.size === 1) return { key: `card:v2:${JSON.stringify([[...ids][0], title])}`, label: `[광고 카드] ${title}` };
+    const advertiser = normalize(ad.querySelector('#channel-name, #advertiser-name')?.textContent);
     if (!title || !advertiser || !thumbnail) return null;
-    return { key: `card:creative:${JSON.stringify([title, advertiser, thumbnail])}`, label: `[광고 카드] ${title}` };
+    return { key: `card:v2:creative:${JSON.stringify([title, advertiser, thumbnail])}`, label: `[광고 카드] ${title}` };
   }
   function restore(state) {
     if (!state.hidden) return;
@@ -85,15 +96,15 @@
   }
   function scan() {
     pending = false;
+    // Nested ad renderers can represent a whole shelf. Work only on leaf creatives.
+    const candidates = [...document.querySelectorAll(AD_SELECTOR)].filter(ad => !ad.querySelector(AD_SELECTOR));
     for (const [ad, state] of states) {
-      if (!ad.isConnected) { restore(state); state.host.remove(); states.delete(ad); }
+      if (!candidates.includes(ad)) { restore(state); state.host.remove(); states.delete(ad); }
     }
     // Explicit YouTube ad renderers only. Never classify ordinary video titles as ads.
-    for (const ad of document.querySelectorAll(AD_SELECTOR)) {
-      if (ad.parentElement?.closest(AD_SELECTOR)) continue;
-      const wrapper = ad.closest('ytd-rich-item-renderer');
-      // Collapse a grid slot only if it contains one ad and no organic video card.
-      const card = wrapper && wrapper.querySelectorAll(AD_SELECTOR).length === 1 && !wrapper.querySelector('ytd-rich-grid-media, ytd-video-renderer, ytd-grid-video-renderer') ? wrapper : ad;
+    for (const ad of candidates) {
+      // Never hide a shared grid item, row, shelf or player containing other cards.
+      const card = ad;
       let state = states.get(ad);
       if (state && state.card !== card) { restore(state); state.host.remove(); states.delete(ad); state = null; }
       if (!state) { state = create(ad, card); states.set(ad, state); }
