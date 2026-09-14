@@ -60,12 +60,15 @@ test('확인 중 다른 광고로 바뀌면 새 광고를 숨기지 않는다', 
     assert.ok(s.data[cardKey('abcdefghijk')]); assert.equal(s.w.document.querySelector('#ad1 ytd-in-feed-ad-layout-renderer').style.display, '');
   } finally { s.close(); }
 });
-test('식별 불가 카드는 이번만 숨기고 내용이 바뀌면 복원한다', async () => {
+test('식별 불가 카드도 목록에 등록하고 이번만 숨기며 내용이 바뀌면 복원한다', async () => {
   const s = await setup(false);
   try {
-    s.roots[0].querySelector('#block').click(); assert.match(s.roots[0].querySelector('#description').textContent, /이번에/);
+    s.roots[0].querySelector('#block').click(); assert.match(s.roots[0].querySelector('#description').textContent, /현재 페이지/);
     s.roots[0].querySelector('#yes').click(); await flush();
-    assert.deepEqual(s.data, {}); assert.equal(s.w.document.querySelector('#ad1 ytd-in-feed-ad-layout-renderer').style.display, 'none');
+    const keys = Object.keys(s.data);
+    assert.equal(keys.length, 1); assert.match(keys[0], /^blocked:card:manual:/);
+    assert.equal(s.data[keys[0]].scope, 'current-page-only');
+    assert.equal(s.w.document.querySelector('#ad1 ytd-in-feed-ad-layout-renderer').style.display, 'none');
     s.w.document.querySelector('#ad1 a').textContent = '다른 광고'; await s.scan();
     assert.equal(s.w.document.querySelector('#ad1 ytd-in-feed-ad-layout-renderer').style.display, '');
   } finally { s.close(); }
@@ -93,7 +96,7 @@ test('공통 링크·프로필 이미지·blob 영상은 영구 차단 식별자
   });
   try {
     s.roots[0].querySelector('#block').click(); s.roots[0].querySelector('#yes').click(); await flush();
-    assert.deepEqual(s.data, {});
+    const keys = Object.keys(s.data); assert.equal(keys.length, 1); assert.match(keys[0], /^blocked:card:manual:/);
     assert.equal(s.w.document.querySelector('#ad1 ytd-in-feed-ad-layout-renderer').style.display, 'none');
     assert.equal(s.w.document.querySelector('#ad2 ytd-in-feed-ad-layout-renderer').style.display, '');
   } finally { s.close(); }

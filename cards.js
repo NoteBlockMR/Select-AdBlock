@@ -4,6 +4,7 @@
   const states = new Map();
   let records = {}, enabled = true, pending = false;
   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+  const manualKey = () => `card:manual:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   function identity(ad) {
     const titleElement = ad.querySelector('#video-title, .yt-lockup-metadata-view-model__title, #headline, .headline');
     const title = normalize(titleElement?.textContent);
@@ -71,17 +72,20 @@
       const snapshot = ad.innerHTML;
       root.querySelector('#description').textContent = selected
         ? `“${selected.label.replace(/^\[광고 카드\] /, '')}” 광고 카드를 숨깁니다. 같은 광고 카드가 다시 나오면 자동으로 숨깁니다.`
-        : '이 광고를 기억할 정보가 부족합니다. 이번에 표시된 광고 카드만 숨길까요?';
+        : '이 광고를 다시 찾을 정보가 부족합니다. 목록에는 등록하고, 현재 페이지의 이 카드만 숨깁니다.';
       root.querySelector('#error').textContent = '';
       const yes = root.querySelector('#yes'); yes.disabled = false;
       yes.onclick = async () => {
         yes.disabled = true;
         try {
-          if (selected) {
-            const record = { ...selected, createdAt: Date.now() };
-            await chrome.storage.local.set({ ['blocked:' + selected.key]: record });
-            records['blocked:' + selected.key] = record;
-          }
+          const record = selected || {
+            key: manualKey(),
+            label: '[광고 카드] 식별할 수 없는 광고',
+            scope: 'current-page-only'
+          };
+          record.createdAt = Date.now();
+          await chrome.storage.local.set({ ['blocked:' + record.key]: record });
+          records['blocked:' + record.key] = record;
           if (!selected && ad.innerHTML === snapshot) { state.once = true; state.snapshot = snapshot; }
           dialog.close(); scan();
         } catch {

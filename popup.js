@@ -11,8 +11,10 @@ async function render() {
     const list = document.querySelector('#list'); list.replaceChildren();
     for (const [key, record] of entries) {
       const row = document.createElement('li'), label = document.createElement('span'), remove = document.createElement('button');
-      const legacyCard = key.startsWith('blocked:card:') && !key.startsWith('blocked:card:v2:');
-      label.textContent = record.label + (legacyCard ? ' (이전 규칙 · 재등록 필요)' : ''); remove.textContent = '해제'; remove.setAttribute('aria-label', `${record.label} 차단 해제`);
+      const legacyCard = key.startsWith('blocked:card:') && !key.startsWith('blocked:card:v2:') && !key.startsWith('blocked:card:manual:');
+      const currentPageOnly = record.scope === 'current-page-only';
+      const note = legacyCard ? ' (이전 규칙 · 재등록 필요)' : currentPageOnly ? ' (현재 페이지만)' : '';
+      label.textContent = record.label + note; remove.textContent = '해제'; remove.setAttribute('aria-label', `${record.label} 차단 해제`);
       remove.onclick = async () => { try { await chrome.storage.local.remove(key); } catch { status.textContent = '해제하지 못했습니다. 다시 시도해 주세요.'; } };
       row.append(label, remove); list.append(row);
     }

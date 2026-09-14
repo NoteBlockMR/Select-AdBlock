@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const PREFIX = 'blocked:';
+  const manualKey = () => `manual:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   let records = {}, enabled = true, player, host, shadow, blockButton, status, dialog;
   let lastAttempt = 0;
   const playback = new AdPlayback();
@@ -48,18 +49,21 @@
     const source = video?.currentSrc;
     shadow.querySelector('#description').textContent = selected
       ? `“${selected.label}” 광고를 이 브라우저에 기억합니다. 같은 정보로 식별되는 광고가 다시 나오면 건너뛰기를 시도합니다.`
-      : '이 광고의 고유 정보를 확인할 수 없어 목록에 저장할 수 없습니다. 이번 광고만 건너뛰기를 시도할까요?';
+      : '이 광고를 다시 찾을 정보가 부족합니다. 목록에는 등록하고, 현재 재생 중인 광고만 건너뛰기를 시도합니다.';
     shadow.querySelector('#result').textContent = '';
     const yes = shadow.querySelector('#yes');
     yes.disabled = false;
     yes.onclick = async () => {
       yes.disabled = true;
       try {
-        if (selected) {
-          const record = { ...selected, createdAt: Date.now() };
-          await chrome.storage.local.set({ [PREFIX + selected.key]: record });
-          records[PREFIX + selected.key] = record;
-        }
+        const record = selected || {
+          key: manualKey(),
+          label: '[재생 광고] 식별할 수 없는 광고',
+          scope: 'current-page-only'
+        };
+        record.createdAt = Date.now();
+        await chrome.storage.local.set({ [PREFIX + record.key]: record });
+        records[PREFIX + record.key] = record;
         const same = selected ? identity()?.key === selected.key : video === player.querySelector('video') && !!source && source === video.currentSrc;
         if (same && isAd() && enabled) {
           if (!selected) once = { video, source };

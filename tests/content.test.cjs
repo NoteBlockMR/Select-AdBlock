@@ -48,9 +48,12 @@ test('일반 영상에서는 저장된 식별 정보가 있어도 동작하지 �
   const s = await setup();
   try { s.w.document.querySelector('#movie_player').classList.remove('ad-showing'); s.tick(); await flush(); assert.equal(s.root.host.style.display, 'none'); assert.equal(s.skips(), 0); } finally { s.close(); }
 });
-test('식별 불가 광고는 목록에 저장하지 않는다', async () => {
+test('식별 불가 광고도 목록에 등록하고 현재 광고만 처리한다', async () => {
   const s = await setup({}, false);
-  try { s.root.querySelector('#block').click(); assert.match(s.root.querySelector('#description').textContent, /저장할 수 없습니다/); s.root.querySelector('#yes').click(); await flush(); assert.deepEqual(s.data, {}); } finally { s.close(); }
+  try {
+    s.root.querySelector('#block').click(); assert.match(s.root.querySelector('#description').textContent, /현재 재생/); s.root.querySelector('#yes').click(); await flush();
+    const keys = Object.keys(s.data); assert.equal(keys.length, 1); assert.match(keys[0], /^blocked:manual:/); assert.equal(s.data[keys[0]].scope, 'current-page-only');
+  } finally { s.close(); }
 });
 test('건너뛰기 불가 광고도 가리고, 일반 영상 전환 시 복원한다', async () => {
   const s = await setup();
